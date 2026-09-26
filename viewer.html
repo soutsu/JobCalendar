@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#e0605f">
 <title>勤務カレンダー</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
 <style>
   :root {
     --work: #222222;
@@ -324,12 +327,13 @@
   }
 
   // ================= 起動 =================
-  // 1) 同じフォルダの calendar.json（読める環境のみ）→ 2) 前回読み込んだデータ → 3) ファイル選択
+  // オフライン対応（Webで公開している場合のみ有効）
+  if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+
+  // 前回読み込んだデータ → なければファイル選択
   (async () => {
-    try {
-      const res = await fetch('calendar.json', { cache: 'no-store' });
-      if (res.ok) { load(await res.json()); return; }
-    } catch (e) { /* ローカルファイルでは読めないことが多いので無視 */ }
     try {
       const s = localStorage.getItem(STORE_KEY);
       if (s) { load(JSON.parse(s)); return; }
