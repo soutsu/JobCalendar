@@ -1,0 +1,498 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>勤務カレンダー作成</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --work: #222222;
+    --off: #d42a2a;
+    --work-faint: #c4c4c4;
+    --off-faint: #efb3b3;
+    --accent: #e0605f;
+    --title: #b8662a;
+    --rule: #f0a6b3;
+    --grid: #ecd3d6;
+    --ui-bg: #e9e9ec;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--ui-bg);
+    color: #222;
+    font-family: "M PLUS Rounded 1c", "Hiragino Maru Gothic ProN", "Hiragino Sans", "Meiryo", "Yu Gothic", sans-serif;
+  }
+
+  /* ---------- 操作パネル（印刷されません） ---------- */
+  .toolbar {
+    position: sticky; top: 0; z-index: 10;
+    background: #fff; border-bottom: 1px solid #d5d5da;
+    padding: 10px 16px;
+    display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: flex-end;
+    font-size: 14px;
+  }
+  .toolbar label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: #555; }
+  .toolbar input, .toolbar select {
+    font: inherit; font-size: 14px; padding: 5px 8px;
+    border: 1px solid #bbb; border-radius: 6px; background: #fff; color: #222;
+  }
+  .toolbar input.title-input { width: 260px; max-width: 100%; }
+  .toolbar .buttons { display: flex; flex-wrap: wrap; gap: 6px; }
+  .toolbar button {
+    font: inherit; font-size: 14px; padding: 6px 12px; cursor: pointer;
+    border: 1px solid #bbb; border-radius: 6px; background: #f7f7f9; color: #222;
+  }
+  .toolbar button:hover { background: #ececf0; }
+  .toolbar button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .toolbar button.primary:hover { filter: brightness(0.95); }
+  .status { width: 100%; font-size: 12px; color: #555; display: flex; flex-wrap: wrap; gap: 4px 18px; }
+  .status b { color: #222; }
+  .status .off { color: var(--off); }
+
+  .stage { padding: 20px 16px 40px; display: flex; justify-content: center; }
+
+  /* ---------- A4用紙 ---------- */
+  .page {
+    width: 210mm; height: 297mm;
+    background: #fff;
+    padding: 9mm 9mm 8mm;
+    box-shadow: 0 2px 12px rgba(0,0,0,.18);
+    overflow: hidden;
+    display: flex; flex-direction: column;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+  .page-title {
+    display: flex; align-items: baseline; gap: 5mm;
+    padding: 0 2mm 1.6mm;
+    border-bottom: 0.6mm solid var(--rule);
+    color: var(--title);
+    min-height: 12mm;
+  }
+  .page-title .main { font-size: 20pt; font-weight: 500; letter-spacing: .02em; white-space: nowrap; }
+  .page-title .sub { font-size: 14pt; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  .months {
+    flex: 1;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(5, 1fr);
+    column-gap: 7mm;
+    row-gap: 2mm;
+    padding-top: 4mm;
+  }
+  .month { display: flex; flex-direction: column; }
+  .month-head { display: flex; align-items: flex-start; gap: 1.2mm; height: 7.5mm; }
+  .month-num {
+    background: var(--accent); color: #fff;
+    min-width: 7.5mm; height: 7mm; padding: 0 .8mm;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15pt; font-weight: 500; line-height: 1;
+  }
+  .month-year { font-size: 5.5pt; color: #666; margin-top: .3mm; }
+
+  .cal { display: grid; grid-template-columns: repeat(7, 1fr); }
+  .cal > div {
+    height: 6.1mm;
+    display: flex; align-items: center; justify-content: center;
+    border-right: 0.25mm dotted var(--grid);
+    border-bottom: 0.25mm dotted var(--grid);
+    font-size: 11.5pt; line-height: 1;
+    user-select: none;
+  }
+  .cal > div:nth-child(7n+1) { border-left: 0.25mm dotted var(--grid); }
+  .cal > .dow { height: 5mm; font-size: 8.5pt; color: #555; border-top: 0.25mm dotted var(--grid); }
+  .cal > .dow.sun, .cal > .dow.sat { color: var(--off); }
+
+  .day { color: var(--work); cursor: pointer; }
+  .day.off { color: var(--off); }
+  .day.changed { font-weight: 700; }
+  .day:hover { background: #fdeceb; }
+  .day.out { color: var(--work-faint); cursor: default; font-weight: 400; }
+  .day.out.off { color: var(--off-faint); }
+  .day.out:hover { background: none; }
+  .day.blank { cursor: default; }
+  .day.blank:hover { background: none; }
+
+  .toast {
+    position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
+    background: #333; color: #fff; padding: 8px 16px; border-radius: 8px; font-size: 14px;
+    opacity: 0; transition: opacity .25s; pointer-events: none; z-index: 20;
+  }
+  .toast.show { opacity: .92; }
+
+  /* ---------- 印刷 ---------- */
+  @page { size: A4 portrait; margin: 0; }
+  @media print {
+    html, body { background: #fff; }
+    .toolbar, .toast { display: none !important; }
+    .stage { padding: 0; display: block; }
+    .page { box-shadow: none; zoom: 1 !important; height: 296.5mm; page-break-after: avoid; }
+    .day:hover { background: none; }
+    .day.changed { font-weight: inherit; }
+  }
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <label>年度（4月始まり）
+    <select id="yearSel"></select>
+  </label>
+  <label>タイトル
+    <input id="titleIn" class="title-input" type="text">
+  </label>
+  <label>サブタイトル
+    <input id="subIn" class="title-input" type="text" placeholder="例：A班専用Calendar">
+  </label>
+  <div class="buttons">
+    <button id="saveBtn" class="primary" title="編集内容をファイルに保存します">名前をつけて保存</button>
+    <button id="openBtn" title="保存したファイルを読み込みます">開く</button>
+    <button id="printBtn" title="A4で印刷／PDFに保存">印刷・PDF</button>
+    <button id="resetBtn" title="手動で変更した日付をすべて元に戻します">初期状態に戻す</button>
+  </div>
+  <div class="status">
+    <span>日付をクリックすると <b>出勤（黒）</b> ⇄ <b class="off">休日（赤）</b> が切り替わります。太字は手動で変更した日です（印刷時は通常の太さ）。</span>
+    <span id="counts"></span>
+  </div>
+  <input id="fileIn" type="file" accept=".json,application/json" hidden>
+</div>
+
+<div class="stage">
+  <div class="page" id="page">
+    <div class="page-title">
+      <span class="main" id="titleOut"></span>
+      <span class="sub" id="subOut"></span>
+    </div>
+    <div class="months" id="months"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(() => {
+  'use strict';
+
+  // ================= 祝日計算（内閣府の現行ルール） =================
+  const pad = n => String(n).padStart(2, '0');
+  const keyOf = (y, m, d) => `${y}-${pad(m)}-${pad(d)}`;
+  const keyOfDate = dt => keyOf(dt.getFullYear(), dt.getMonth() + 1, dt.getDate());
+
+  // m月の第n月曜日の日付
+  function nthMonday(y, m, n) {
+    const dow1 = new Date(y, m - 1, 1).getDay();
+    return 1 + ((8 - dow1) % 7) + 7 * (n - 1);
+  }
+  const vernalEquinox = y => Math.floor(20.8431 + 0.242194 * (y - 1980) - Math.floor((y - 1980) / 4));
+  const autumnalEquinox = y => Math.floor(23.2488 + 0.242194 * (y - 1980) - Math.floor((y - 1980) / 4));
+
+  const holidayCache = {};
+  function holidaysOf(y) {
+    if (holidayCache[y]) return holidayCache[y];
+    const h = {};
+    const add = (m, d, name) => { h[keyOf(y, m, d)] = name; };
+
+    add(1, 1, '元日');
+    add(1, nthMonday(y, 1, 2), '成人の日');
+    add(2, 11, '建国記念の日');
+    add(2, 23, '天皇誕生日');
+    add(3, vernalEquinox(y), '春分の日');
+    add(4, 29, '昭和の日');
+    add(5, 3, '憲法記念日');
+    add(5, 4, 'みどりの日');
+    add(5, 5, 'こどもの日');
+    if (y === 2020) { add(7, 23, '海の日'); add(7, 24, 'スポーツの日'); add(8, 10, '山の日'); }
+    else if (y === 2021) { add(7, 22, '海の日'); add(7, 23, 'スポーツの日'); add(8, 8, '山の日'); }
+    else { add(7, nthMonday(y, 7, 3), '海の日'); add(8, 11, '山の日'); add(10, nthMonday(y, 10, 2), 'スポーツの日'); }
+    add(9, nthMonday(y, 9, 3), '敬老の日');
+    add(9, autumnalEquinox(y), '秋分の日');
+    add(11, 3, '文化の日');
+    add(11, 23, '勤労感謝の日');
+
+    // 国民の休日：祝日に挟まれた平日
+    const base = Object.keys(h);
+    for (const k of base) {
+      const d = new Date(k + 'T00:00:00');
+      const next = new Date(d); next.setDate(d.getDate() + 1);
+      const next2 = new Date(d); next2.setDate(d.getDate() + 2);
+      const k1 = keyOfDate(next), k2 = keyOfDate(next2);
+      if (!h[k1] && h[k2] && next.getDay() !== 0) h[k1] = '国民の休日';
+    }
+    // 振替休日：日曜の祝日の後の最初の平日
+    for (const k of Object.keys(h).sort()) {
+      const d = new Date(k + 'T00:00:00');
+      if (d.getDay() !== 0) continue;
+      const n = new Date(d);
+      do { n.setDate(n.getDate() + 1); } while (h[keyOfDate(n)]);
+      if (n.getFullYear() === y) h[keyOfDate(n)] = '振替休日';
+    }
+    return (holidayCache[y] = h);
+  }
+  const holidayName = (y, key) => holidaysOf(y)[key] || null;
+
+  // ================= 状態 =================
+  const STORE_KEY = 'jobcalendar.current.v1';
+  const now = new Date();
+  const state = {
+    startYear: now.getFullYear(),
+    title: '',
+    titleAuto: true,
+    subtitle: '',
+    overrides: new Set(),   // 既定状態から反転させた日付（YYYY-MM-DD）
+  };
+
+  const autoTitle = y => `${y} - ${y + 1}（令和${y - 2018} - ${y - 2017} 年）`;
+
+  function isDefaultOff(dt) {
+    const dow = dt.getDay();
+    return dow === 0 || dow === 6 || !!holidayName(dt.getFullYear(), keyOfDate(dt));
+  }
+  const isOff = dt => isDefaultOff(dt) !== state.overrides.has(keyOfDate(dt));
+
+  // 対象区間の13か月
+  function monthsOf(y) {
+    const list = [];
+    for (let i = 0; i < 13; i++) {
+      const m = ((3 + i) % 12) + 1;
+      list.push({ y: y + (m < 4 || i === 12 ? 1 : 0), m });
+    }
+    return list;
+  }
+
+  // ================= 描画 =================
+  const $ = id => document.getElementById(id);
+  const DOW = ['日', '月', '火', '水', '木', '金', '土'];
+
+  function render() {
+    $('titleOut').textContent = state.title;
+    $('subOut').textContent = state.subtitle;
+
+    const wrap = $('months');
+    wrap.textContent = '';
+    let work = 0, off = 0, changed = 0;
+
+    for (const { y, m } of monthsOf(state.startYear)) {
+      const box = document.createElement('div');
+      box.className = 'month';
+      box.innerHTML = `<div class="month-head"><div class="month-num">${m}</div><div class="month-year">${y}</div></div>`;
+      const cal = document.createElement('div');
+      cal.className = 'cal';
+      DOW.forEach((w, i) => {
+        const c = document.createElement('div');
+        c.className = 'dow' + (i === 0 ? ' sun' : i === 6 ? ' sat' : '');
+        c.textContent = w;
+        cal.appendChild(c);
+      });
+
+      const first = new Date(y, m - 1, 1);
+      const start = new Date(first); start.setDate(1 - first.getDay());
+      const daysInMonth = new Date(y, m, 0).getDate();
+      const weeks = Math.ceil((first.getDay() + daysInMonth) / 7);
+
+      for (let i = 0; i < 42; i++) {
+        const dt = new Date(start); dt.setDate(start.getDate() + i);
+        const c = document.createElement('div');
+        c.className = 'day';
+        if (i >= weeks * 7) {           // 6行に揃えるための空行
+          c.classList.add('blank');
+          cal.appendChild(c);
+          continue;
+        }
+        const key = keyOfDate(dt);
+        const inMonth = dt.getMonth() === m - 1;
+        const offDay = isOff(dt);
+        c.textContent = dt.getDate();
+        if (offDay) c.classList.add('off');
+        if (!inMonth) {
+          c.classList.add('out');
+        } else {
+          c.dataset.key = key;
+          if (state.overrides.has(key)) { c.classList.add('changed'); changed++; }
+          const hn = holidayName(dt.getFullYear(), key);
+          c.title = `${m}/${dt.getDate()}（${DOW[dt.getDay()]}）${hn ? ' ' + hn : ''}：${offDay ? '休日' : '出勤'}`;
+          offDay ? off++ : work++;
+        }
+        cal.appendChild(c);
+      }
+      box.appendChild(cal);
+      wrap.appendChild(box);
+    }
+    $('counts').innerHTML = `区間合計：出勤 <b>${work}</b> 日 ／ 休日 <b class="off">${off}</b> 日（手動変更 ${changed} 日）`;
+    persist();
+  }
+
+  // ================= 操作 =================
+  $('months').addEventListener('click', e => {
+    const c = e.target.closest('.day[data-key]');
+    if (!c) return;
+    const k = c.dataset.key;
+    state.overrides.has(k) ? state.overrides.delete(k) : state.overrides.add(k);
+    render();
+  });
+
+  const yearSel = $('yearSel');
+  for (let y = 2024; y <= 2045; y++) {
+    const o = document.createElement('option');
+    o.value = y; o.textContent = `${y}年4月 〜 ${y + 1}年4月`;
+    yearSel.appendChild(o);
+  }
+  yearSel.addEventListener('change', () => {
+    const y = +yearSel.value;
+    if (state.overrides.size && !confirm('年度を変更すると、手動で変更した日付はリセットされます。よろしいですか？')) {
+      yearSel.value = state.startYear;
+      return;
+    }
+    state.startYear = y;
+    state.overrides.clear();
+    if (state.titleAuto) state.title = autoTitle(y);
+    syncInputs();
+    render();
+  });
+
+  $('titleIn').addEventListener('input', e => {
+    state.title = e.target.value;
+    state.titleAuto = state.title === autoTitle(state.startYear);
+    render();
+  });
+  $('subIn').addEventListener('input', e => { state.subtitle = e.target.value; render(); });
+
+  $('resetBtn').addEventListener('click', () => {
+    if (!state.overrides.size) { toast('変更はありません'); return; }
+    if (confirm('手動で変更した日付をすべて元に戻します。よろしいですか？')) {
+      state.overrides.clear();
+      render();
+    }
+  });
+
+  $('printBtn').addEventListener('click', () => window.print());
+
+  // ---- 保存・読込 ----
+  function toJSON() {
+    return JSON.stringify({
+      app: 'jobcalendar',
+      version: 1,
+      startYear: state.startYear,
+      title: state.title,
+      subtitle: state.subtitle,
+      overrides: [...state.overrides].sort(),
+    }, null, 2);
+  }
+
+  function applyData(d) {
+    if (!d || d.app !== 'jobcalendar' || typeof d.startYear !== 'number') throw new Error('形式が違います');
+    state.startYear = d.startYear;
+    state.title = typeof d.title === 'string' ? d.title : autoTitle(d.startYear);
+    state.titleAuto = state.title === autoTitle(d.startYear);
+    state.subtitle = typeof d.subtitle === 'string' ? d.subtitle : '';
+    state.overrides = new Set(Array.isArray(d.overrides) ? d.overrides.filter(s => /^\d{4}-\d{2}-\d{2}$/.test(s)) : []);
+    if (![...yearSel.options].some(o => +o.value === state.startYear)) {
+      const o = document.createElement('option');
+      o.value = state.startYear; o.textContent = `${state.startYear}年4月 〜 ${state.startYear + 1}年4月`;
+      yearSel.appendChild(o);
+    }
+    syncInputs();
+    render();
+  }
+
+  const safeName = s => s.replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, ' ').trim();
+
+  $('saveBtn').addEventListener('click', async () => {
+    const suggested = safeName(`${state.startYear}年度 ${state.subtitle || 'カレンダー'}`) || 'カレンダー';
+    const data = toJSON();
+    if (window.showSaveFilePicker) {
+      try {
+        const handle = await window.showSaveFilePicker({
+          suggestedName: suggested + '.json',
+          types: [{ description: 'カレンダーデータ', accept: { 'application/json': ['.json'] } }],
+        });
+        const w = await handle.createWritable();
+        await w.write(data);
+        await w.close();
+        toast(`「${handle.name}」に保存しました`);
+        return;
+      } catch (e) {
+        if (e.name === 'AbortError') return;
+        // 使えない環境ではダウンロード方式にフォールバック
+      }
+    }
+    let name = prompt('保存するファイル名を入力してください', suggested);
+    if (name === null) return;
+    name = safeName(name) || suggested;
+    if (!/\.json$/i.test(name)) name += '.json';
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([data], { type: 'application/json' }));
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    toast(`「${name}」としてダウンロードしました`);
+  });
+
+  $('openBtn').addEventListener('click', () => $('fileIn').click());
+  $('fileIn').addEventListener('change', async e => {
+    const f = e.target.files[0];
+    e.target.value = '';
+    if (!f) return;
+    try {
+      applyData(JSON.parse(await f.text()));
+      toast(`「${f.name}」を開きました`);
+    } catch (err) {
+      alert('このファイルは読み込めませんでした。\n（このツールで保存した .json ファイルを選んでください）');
+    }
+  });
+
+  // ---- 作業中の内容をブラウザに自動保存（次回開いたときに復元） ----
+  function persist() {
+    try { localStorage.setItem(STORE_KEY, toJSON()); } catch (e) { /* 使えない環境では無視 */ }
+  }
+  function restore() {
+    try {
+      const s = localStorage.getItem(STORE_KEY);
+      if (s) { applyData(JSON.parse(s)); return true; }
+    } catch (e) { /* 無視 */ }
+    return false;
+  }
+
+  function syncInputs() {
+    yearSel.value = state.startYear;
+    $('titleIn').value = state.title;
+    $('subIn').value = state.subtitle;
+  }
+
+  let toastTimer;
+  function toast(msg) {
+    const t = $('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+  }
+
+  // 画面幅が狭いときは用紙を縮小表示
+  function fit() {
+    const page = $('page');
+    page.style.zoom = 1;
+    const w = page.getBoundingClientRect().width;
+    const avail = document.documentElement.clientWidth - 32;
+    page.style.zoom = w > avail ? (avail / w).toFixed(3) : 1;
+  }
+  window.addEventListener('resize', fit);
+  window.addEventListener('beforeprint', () => { $('page').style.zoom = 1; });
+  window.addEventListener('afterprint', fit);
+
+  // ---- 初期化 ----
+  if (!restore()) {
+    state.title = autoTitle(state.startYear);
+    syncInputs();
+    render();
+  }
+  fit();
+})();
+</script>
+</body>
+</html>
