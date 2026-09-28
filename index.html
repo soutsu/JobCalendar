@@ -93,6 +93,7 @@
     font-size: 15pt; font-weight: 500; line-height: 1;
   }
   .month-year { font-size: 5.5pt; color: #666; margin-top: .3mm; }
+  .month-count { display: none; }
 
   .cal { display: grid; grid-template-columns: repeat(7, 1fr); }
   .cal > div {
@@ -110,12 +111,12 @@
   .day { color: var(--work); cursor: pointer; }
   .day.off { color: var(--off); }
   .day.changed { font-weight: 700; }
-  .day:hover { background: #fdeceb; }
+  @media (hover: hover) { .day:hover { background: #fdeceb; } }
   .day.out { color: var(--work-faint); cursor: default; font-weight: 400; }
   .day.out.off { color: var(--off-faint); }
-  .day.out:hover { background: none; }
+  @media (hover: hover) { .day.out:hover { background: none; } }
   .day.blank { cursor: default; }
-  .day.blank:hover { background: none; }
+  @media (hover: hover) { .day.blank:hover { background: none; } }
 
   .toast {
     position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
@@ -123,6 +124,38 @@
     opacity: 0; transition: opacity .25s; pointer-events: none; z-index: 20;
   }
   .toast.show { opacity: .92; }
+
+  /* ---------- スマホ表示（画面幅が狭いとき。印刷には影響しません） ---------- */
+  @media screen and (max-width: 760px) {
+    .toolbar { position: static; padding: 12px; gap: 10px; }
+    .toolbar label { width: 100%; font-size: 13px; }
+    .toolbar input.title-input, .toolbar select { width: 100%; font-size: 16px; padding: 8px 10px; }
+    .toolbar .buttons { width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .toolbar button { padding: 11px 8px; font-size: 15px; }
+    .status { font-size: 12px; }
+
+    .stage { display: block; padding: 12px 10px 40px; }
+    .page {
+      width: auto; height: auto; overflow: visible;
+      padding: 14px 10px 4px; border-radius: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,.1);
+    }
+    .page-title { flex-wrap: wrap; gap: 2px 10px; min-height: 0; padding: 0 4px 8px; border-bottom-width: 2px; }
+    .page-title .main { font-size: 18px; white-space: normal; }
+    .page-title .sub { font-size: 14px; white-space: normal; }
+
+    .months { display: block; padding-top: 14px; }
+    .month { margin-bottom: 22px; }
+    .month-head { height: auto; align-items: center; gap: 8px; margin-bottom: 6px; padding: 0 2px; }
+    .month-num { min-width: 36px; height: 34px; font-size: 21px; border-radius: 4px; }
+    .month-year { font-size: 13px; margin: 0; }
+    .month-count { display: block; margin-left: auto; font-size: 12px; color: #888; }
+    .month-count b { color: var(--work); }
+    .month-count b.off { color: var(--off); }
+
+    .cal > div { height: 46px; font-size: 19px; border-width: 1px; }
+    .cal > .dow { height: 28px; font-size: 12px; }
+  }
 
   /* ---------- 印刷 ---------- */
   @page { size: A4 portrait; margin: 0; }
@@ -133,6 +166,7 @@
     .page { box-shadow: none; zoom: 1 !important; height: 296.5mm; page-break-after: avoid; }
     .day:hover { background: none; }
     .day.changed { font-weight: inherit; }
+    .month-count { display: none !important; }
   }
 </style>
 </head>
@@ -155,7 +189,7 @@
     <button id="resetBtn" title="手動で変更した日付をすべて元に戻します">初期状態に戻す</button>
   </div>
   <div class="status">
-    <span>日付をクリックすると <b>出勤（黒）</b> ⇄ <b class="off">休日（赤）</b> が切り替わります。太字は手動で変更した日です（印刷時は通常の太さ）。</span>
+    <span>日付をクリック（タップ）すると <b>出勤（黒）</b> ⇄ <b class="off">休日（赤）</b> が切り替わります。太字は手動で変更した日です（印刷時は通常の太さ）。</span>
     <span id="counts"></span>
   </div>
   <input id="fileIn" type="file" accept=".json,application/json" hidden>
@@ -292,6 +326,7 @@
       const start = new Date(first); start.setDate(1 - first.getDay());
       const daysInMonth = new Date(y, m, 0).getDate();
       const weeks = Math.ceil((first.getDay() + daysInMonth) / 7);
+      let mWork = 0, mOff = 0;
 
       for (let i = 0; i < 42; i++) {
         const dt = new Date(start); dt.setDate(start.getDate() + i);
@@ -314,10 +349,15 @@
           if (state.overrides.has(key)) { c.classList.add('changed'); changed++; }
           const hn = holidayName(dt.getFullYear(), key);
           c.title = `${m}/${dt.getDate()}（${DOW[dt.getDay()]}）${hn ? ' ' + hn : ''}：${offDay ? '休日' : '出勤'}`;
-          offDay ? off++ : work++;
+          offDay ? (off++, mOff++) : (work++, mWork++);
         }
         cal.appendChild(c);
       }
+      const head = box.querySelector('.month-head');
+      const cnt = document.createElement('div');
+      cnt.className = 'month-count';
+      cnt.innerHTML = `出勤 <b>${mWork}</b> ／ 休日 <b class="off">${mOff}</b>`;
+      head.appendChild(cnt);
       box.appendChild(cal);
       wrap.appendChild(box);
     }
@@ -474,9 +514,11 @@
   }
 
   // 画面幅が狭いときは用紙を縮小表示
+  const narrow = window.matchMedia('(max-width: 760px)');
   function fit() {
     const page = $('page');
     page.style.zoom = 1;
+    if (narrow.matches) return;
     const w = page.getBoundingClientRect().width;
     const avail = document.documentElement.clientWidth - 32;
     page.style.zoom = w > avail ? (avail / w).toFixed(3) : 1;
