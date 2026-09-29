@@ -1,7 +1,7 @@
 // 閲覧ページをオフラインでも開けるようにするための仕組み（Service Worker）。
 // 表示中はキャッシュを使い、裏で最新版を取りに行く（次回起動時に反映）。
-const CACHE = 'jobcalendar-viewer-v1';
-const ASSETS = ['viewer.html', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png'];
+const CACHE = 'jobcalendar-viewer-v2';
+const ASSETS = ['viewer.html', 'i18n.js', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));
