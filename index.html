@@ -27,6 +27,19 @@
     font-family: "M PLUS Rounded 1c", "Hiragino Maru Gothic ProN", "Hiragino Sans", "Meiryo", "Yu Gothic", sans-serif;
   }
 
+  /* ---------- ページ切り替えリンク ---------- */
+  .pagenav {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 6px 16px; background: #fbeaea; border-bottom: 1px solid #f1cfcf;
+    font-size: 13px; color: #8a4a3a;
+  }
+  .pagenav .here { font-weight: 700; }
+  .pagenav a {
+    color: #c0392b; font-weight: 700; text-decoration: none;
+    padding: 4px 12px; border: 1px solid #e8a7a2; border-radius: 999px; background: #fff;
+    white-space: nowrap;
+  }
+  .pagenav a:hover { background: #fff5f4; }
   /* ---------- 操作パネル（印刷されません） ---------- */
   .toolbar {
     position: sticky; top: 0; z-index: 10;
@@ -161,7 +174,7 @@
   @page { size: A4 portrait; margin: 0; }
   @media print {
     html, body { background: #fff; }
-    .toolbar, .toast { display: none !important; }
+    .toolbar, .toast, .pagenav { display: none !important; }
     .stage { padding: 0; display: block; }
     .page { box-shadow: none; zoom: 1 !important; height: 296.5mm; page-break-after: avoid; }
     .day:hover { background: none; }
@@ -171,6 +184,11 @@
 </style>
 </head>
 <body>
+
+<nav class="pagenav">
+  <span class="here">勤務カレンダー作成</span>
+  <a href="viewer.html">閲覧ページへ</a>
+</nav>
 
 <div class="toolbar">
   <label>年度（4月始まり）

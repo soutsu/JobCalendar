@@ -28,12 +28,25 @@
     -webkit-text-size-adjust: 100%;
   }
 
+  /* ---------- ページ切り替えリンク ---------- */
+  .pagenav {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: calc(6px + env(safe-area-inset-top)) 16px 6px; background: #fbeaea; border-bottom: 1px solid #f1cfcf;
+    font-size: 13px; color: #8a4a3a;
+  }
+  .pagenav .here { font-weight: 700; }
+  .pagenav a {
+    color: #c0392b; font-weight: 700; text-decoration: none;
+    padding: 4px 12px; border: 1px solid #e8a7a2; border-radius: 999px; background: #fff;
+    white-space: nowrap;
+  }
+  .pagenav a:hover { background: #fff5f4; }
   /* ---------- ヘッダー ---------- */
   header {
     position: sticky; top: 0; z-index: 10;
     background: rgba(255,255,255,.96);
     border-bottom: 1px solid #ddd;
-    padding: calc(8px + env(safe-area-inset-top)) 16px 8px;
+    padding: 8px 16px;
     display: flex; align-items: center; gap: 10px;
   }
   .titles { flex: 1; min-width: 0; color: var(--title); }
@@ -107,6 +120,10 @@
 </head>
 <body>
 
+<nav class="pagenav">
+  <span class="here">閲覧ページ</span>
+  <a href="index.html">編集ページへ</a>
+</nav>
 <header>
   <div class="titles">
     <div class="main" id="titleOut">勤務カレンダー</div>
