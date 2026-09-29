@@ -1,10 +1,16 @@
 // 閲覧ページをオフラインでも開けるようにするための仕組み（Service Worker）。
-// 表示中はキャッシュを使い、裏で最新版を取りに行く（次回起動時に反映）。
-const CACHE = 'jobcalendar-viewer-v2';
+// ネットにつながっていれば常に最新版を取得し（更新がすぐ反映される）、
+// つながらないとき・応答が遅いときだけ保存済みの版を使う。
+const CACHE = 'jobcalendar-viewer-v3';
 const ASSETS = ['viewer.html', 'i18n.js', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png'];
+const TIMEOUT_MS = 3000;
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));
+  e.waitUntil(
+    caches.open(CACHE)
+      .then(c => c.addAll(ASSETS.map(a => new Request(a, { cache: 'no-cache' }))))
+      .then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener('activate', e => {
@@ -19,15 +25,20 @@ self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
   if (e.request.method !== 'GET' || url.origin !== location.origin) return;
   const path = url.pathname.slice(new URL(self.registration.scope).pathname.length);
-  if (!ASSETS.includes(path)) return;   // 作成ツールなど他のファイルには関与しない
+  if (!ASSETS.includes(path)) return;   // 作成ページなど他のファイルには関与しない
 
-  e.respondWith(
-    caches.open(CACHE).then(async cache => {
-      const cached = await cache.match(path);
-      const update = fetch(e.request)
-        .then(res => { if (res.ok) cache.put(path, res.clone()); return res; })
-        .catch(() => null);
-      return cached || (await update) || Response.error();
-    })
-  );
+  e.respondWith((async () => {
+    const cache = await caches.open(CACHE);
+    // ブラウザの一時キャッシュを通さず、サーバーに更新有無を確認して取得
+    const network = fetch(e.request.url, { cache: 'no-cache' })
+      .then(res => { if (res.ok) cache.put(path, res.clone()); return res; });
+    const timeout = new Promise(resolve => setTimeout(resolve, TIMEOUT_MS, null));
+    try {
+      const res = await Promise.race([network, timeout]);
+      if (res && res.ok) return res;
+    } catch (err) { /* オフライン */ }
+    const cached = await cache.match(path);
+    if (cached) return cached;
+    return network.catch(() => Response.error());
+  })());
 });
