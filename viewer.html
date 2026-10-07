@@ -66,7 +66,15 @@
     white-space: nowrap;
   }
   header button.primary { background: var(--accent); color: #fff; }
-  header button:disabled { opacity: .4; }
+  header button:disabled { cursor: default; color: #ecc9c8; border-color: #f3dddd; background: #fff; }
+  header button.primary:disabled { background: #f0b3b2; border-color: #f0b3b2; color: #fff; }
+  header button.arrow {
+    width: 38px; height: 38px; padding: 0 0 3px; flex: none;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 26px; font-weight: 700; line-height: 1;
+  }
+  header .titles { text-align: center; }
+  header .titles .main { white-space: normal; font-size: 14px; line-height: 1.25; }
 
   main { max-width: 520px; margin: 0 auto; padding: 12px 16px 40px; }
 
@@ -116,6 +124,17 @@
   .legend { font-size: 12px; color: var(--muted); text-align: center; margin: 4px 0 12px; }
   .legend b { color: var(--work); }
   .legend b.off { color: var(--off); }
+  .empty a {
+    display: inline-block; margin-top: 16px; padding: 12px 22px; border-radius: 999px;
+    background: var(--accent); color: #fff; font-weight: 600; text-decoration: none;
+  }
+  .empty button.secondary, .footer button {
+    font: inherit; font-size: 14px; font-weight: 600; margin-top: 12px;
+    padding: 10px 18px; border-radius: 999px; cursor: pointer;
+    border: 1px solid var(--accent); background: #fff; color: var(--accent);
+  }
+  .footer { text-align: center; padding: 8px 0 24px; font-size: 12px; color: var(--muted); }
+  .footer p { margin: 0; }
 
   .toast {
     position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom)); transform: translateX(-50%);
@@ -134,128 +153,80 @@
   <a href="index.html" data-i18n="toEditor">編集ページへ</a>
 </nav>
 <header>
+  <button id="prevBtn" class="arrow" disabled data-i18n-title="prevYear">‹</button>
   <div class="titles">
     <div class="main" id="titleOut">勤務カレンダー</div>
     <div class="sub" id="subOut"></div>
   </div>
+  <button id="nextBtn" class="arrow" disabled data-i18n-title="nextYear">›</button>
   <button id="todayBtn" class="primary" disabled data-i18n="thisMonth">今月</button>
-  <button id="openBtn" data-i18n="openShort">開く</button>
 </header>
 
 <main id="main"></main>
 <input id="fileIn" type="file" accept=".json,application/json" hidden>
 <div class="toast" id="toast"></div>
 
+<script src="common.js"></script>
 <script src="i18n.js"></script>
 <script>
 (() => {
   'use strict';
   const I = window.JC_I18N;
   const t = I.t;
-
-  // ================= 祝日計算（index.html と同じロジック） =================
-  const pad = n => String(n).padStart(2, '0');
-  const keyOf = (y, m, d) => `${y}-${pad(m)}-${pad(d)}`;
-  const keyOfDate = dt => keyOf(dt.getFullYear(), dt.getMonth() + 1, dt.getDate());
-
-  function nthMonday(y, m, n) {
-    const dow1 = new Date(y, m - 1, 1).getDay();
-    return 1 + ((8 - dow1) % 7) + 7 * (n - 1);
-  }
-  const vernalEquinox = y => Math.floor(20.8431 + 0.242194 * (y - 1980) - Math.floor((y - 1980) / 4));
-  const autumnalEquinox = y => Math.floor(23.2488 + 0.242194 * (y - 1980) - Math.floor((y - 1980) / 4));
-
-  const holidayCache = {};
-  function holidaysOf(y) {
-    if (holidayCache[y]) return holidayCache[y];
-    const h = {};
-    const add = (m, d, name) => { h[keyOf(y, m, d)] = name; };
-
-    add(1, 1, '元日');
-    add(1, nthMonday(y, 1, 2), '成人の日');
-    add(2, 11, '建国記念の日');
-    add(2, 23, '天皇誕生日');
-    add(3, vernalEquinox(y), '春分の日');
-    add(4, 29, '昭和の日');
-    add(5, 3, '憲法記念日');
-    add(5, 4, 'みどりの日');
-    add(5, 5, 'こどもの日');
-    if (y === 2020) { add(7, 23, '海の日'); add(7, 24, 'スポーツの日'); add(8, 10, '山の日'); }
-    else if (y === 2021) { add(7, 22, '海の日'); add(7, 23, 'スポーツの日'); add(8, 8, '山の日'); }
-    else { add(7, nthMonday(y, 7, 3), '海の日'); add(8, 11, '山の日'); add(10, nthMonday(y, 10, 2), 'スポーツの日'); }
-    add(9, nthMonday(y, 9, 3), '敬老の日');
-    add(9, autumnalEquinox(y), '秋分の日');
-    add(11, 3, '文化の日');
-    add(11, 23, '勤労感謝の日');
-
-    const base = Object.keys(h);
-    for (const k of base) {
-      const d = new Date(k + 'T00:00:00');
-      const next = new Date(d); next.setDate(d.getDate() + 1);
-      const next2 = new Date(d); next2.setDate(d.getDate() + 2);
-      const k1 = keyOfDate(next), k2 = keyOfDate(next2);
-      if (!h[k1] && h[k2] && next.getDay() !== 0) h[k1] = '国民の休日';
-    }
-    for (const k of Object.keys(h).sort()) {
-      const d = new Date(k + 'T00:00:00');
-      if (d.getDay() !== 0) continue;
-      const n = new Date(d);
-      do { n.setDate(n.getDate() + 1); } while (h[keyOfDate(n)]);
-      if (n.getFullYear() === y) h[keyOfDate(n)] = '振替休日';
-    }
-    return (holidayCache[y] = h);
-  }
-  const holidayName = (y, key) => holidaysOf(y)[key] || null;
-
-  // ================= データ =================
-  const STORE_KEY = 'jobcalendar.viewer.v1';
+  const { pad, keyOfDate, monthsOf, holidayName, isOff, fiscalYearOf } = window.JC;
   const $ = id => document.getElementById(id);
-  let data = null;
 
-  function validate(d) {
-    if (!d || d.app !== 'jobcalendar' || typeof d.startYear !== 'number') throw new Error('invalid file');
-    return {
-      startYear: d.startYear,
-      title: typeof d.title === 'string' ? d.title : '',
-      subtitle: typeof d.subtitle === 'string' ? d.subtitle : '',
-      overrides: new Set(Array.isArray(d.overrides) ? d.overrides : []),
-    };
+  let calendars = {};   // 保存済みの全年度
+  let years = [];       // 保存済みの年度（昇順）
+  let year = null;      // 表示中の年度
+
+  function reload() {
+    calendars = window.JC.loadAll();
+    years = Object.keys(calendars).map(Number).sort((a, b) => a - b);
   }
 
-  function isOff(dt) {
-    const dow = dt.getDay();
-    const def = dow === 0 || dow === 6 || !!holidayName(dt.getFullYear(), keyOfDate(dt));
-    return def !== data.overrides.has(keyOfDate(dt));
-  }
-
-  function monthsOf(y) {
-    const list = [];
-    for (let i = 0; i < 13; i++) {
-      const m = ((3 + i) % 12) + 1;
-      list.push({ y: y + (m < 4 || i === 12 ? 1 : 0), m });
-    }
-    return list;
+  // 今年度があればそれ、なければいちばん近い年度
+  function defaultYear() {
+    const fy = fiscalYearOf();
+    if (calendars[fy]) return fy;
+    return years.reduce((best, y) =>
+      best === null || Math.abs(y - fy) < Math.abs(best - fy) || (Math.abs(y - fy) === Math.abs(best - fy) && y > best) ? y : best, null);
   }
 
   // ================= 描画 =================
-  function renderEmpty(msg) {
-    $('todayBtn').disabled = true;
+  function updateNav() {
+    const idx = years.indexOf(year);
+    $('prevBtn').disabled = idx <= 0;
+    $('nextBtn').disabled = idx < 0 || idx >= years.length - 1;
+    $('todayBtn').disabled = year === null;
+  }
+
+  function renderEmpty() {
+    year = null;
+    $('titleOut').textContent = t('appTitle');
+    $('subOut').textContent = '';
+    document.title = t('appTitle');
     $('main').innerHTML = `
       <div class="empty">
-        ${msg ? `<p>${msg}</p>` : ''}
         <p>${t('emptyMsg')}</p>
-        <p style="font-size:13px;color:#888">${t('emptyNote')}</p>
-        <button type="button" id="emptyOpen">${t('chooseFile')}</button>
+        <a href="index.html">${t('openEditor')}</a>
+        <p style="font-size:13px;color:#888;margin-top:28px">${t('emptyNote')}</p>
+        <button type="button" class="secondary" id="emptyImport">${t('importFile')}</button>
       </div>`;
-    $('emptyOpen').addEventListener('click', () => $('fileIn').click());
+    $('emptyImport').addEventListener('click', () => $('fileIn').click());
+    updateNav();
   }
 
   function render() {
+    if (year === null || !calendars[year]) { renderEmpty(); return; }
+    const data = calendars[year];
+    const overrides = new Set(data.overrides);
+
     // 自動タイトルのままなら表示中の言語に合わせる
-    const title = I.isAutoTitle(data.title, data.startYear) ? t('autoTitle', data.startYear) : data.title;
-    $('titleOut').textContent = title || t('appTitle');
+    const title = !data.title || I.isAutoTitle(data.title, year) ? t('autoTitle', year) : data.title;
+    $('titleOut').textContent = title;
     $('subOut').textContent = data.subtitle;
-    document.title = [title, data.subtitle].filter(Boolean).join(' ') || t('appTitle');
+    document.title = [title, data.subtitle].filter(Boolean).join(' ');
     const DOW = t('dow');
 
     const today = new Date();
@@ -268,12 +239,11 @@
     legend.innerHTML = t('legend');
     main.appendChild(legend);
 
-    let hasCurrent = false;
-    for (const { y, m } of monthsOf(data.startYear)) {
+    for (const { y, m } of monthsOf(year)) {
       const sec = document.createElement('section');
       sec.className = 'month';
       sec.id = `m-${y}-${pad(m)}`;
-      if (y === today.getFullYear() && m === today.getMonth() + 1) { sec.classList.add('current'); sec.dataset.badge = t('thisMonth'); hasCurrent = true; }
+      if (y === today.getFullYear() && m === today.getMonth() + 1) sec.classList.add('current');
 
       const cal = document.createElement('div');
       cal.className = 'cal';
@@ -292,12 +262,11 @@
       let work = 0, off = 0;
       for (let d = 1; d <= days; d++) {
         const dt = new Date(y, m - 1, d);
-        const key = keyOfDate(dt);
-        const offDay = isOff(dt);
+        const offDay = isOff(dt, overrides);
         offDay ? off++ : work++;
         const c = document.createElement('div');
-        c.className = 'day' + (offDay ? ' off' : '') + (key === todayKey ? ' today' : '');
-        const hn = I.holiday(holidayName(y, key));
+        c.className = 'day' + (offDay ? ' off' : '') + (keyOfDate(dt) === todayKey ? ' today' : '');
+        const hn = I.holiday(holidayName(dt));
         c.innerHTML = `<span class="n">${d}</span>${hn ? '<span class="hol"></span>' : ''}`;
         c.dataset.info = t('dayInfo', m, d, DOW[dt.getDay()], hn, offDay);
         cal.appendChild(c);
@@ -307,19 +276,24 @@
       head.className = 'month-head';
       head.innerHTML = `<div class="month-num">${m}</div><div class="month-year">${t('monthYear', y)}</div>
         <div class="month-count">${t('monthCount', work, off)}</div>`;
+      if (sec.classList.contains('current')) head.dataset.badge = t('thisMonth');
       sec.appendChild(head);
       sec.appendChild(cal);
       main.appendChild(sec);
     }
-    $('todayBtn').disabled = false;
-    $('todayBtn').dataset.inRange = hasCurrent ? '1' : '';
+
+    const footer = document.createElement('div');
+    footer.className = 'footer';
+    footer.innerHTML = `<p>${t('importNote')}</p><button type="button" id="footerImport">${t('importFile')}</button>`;
+    main.appendChild(footer);
+    $('footerImport').addEventListener('click', () => $('fileIn').click());
+    updateNav();
   }
 
-  function load(raw, fromFileName) {
-    data = validate(raw);
-    try { localStorage.setItem(STORE_KEY, JSON.stringify(raw)); } catch (e) { /* 保存できない環境では毎回選択 */ }
+  function show(y) {
+    year = y;
     render();
-    if (fromFileName) toast(t('loaded', fromFileName));
+    window.scrollTo(0, 0);
   }
 
   // ================= 操作 =================
@@ -328,24 +302,40 @@
     if (c) toast(c.dataset.info);
   });
 
+  $('prevBtn').addEventListener('click', () => { const i = years.indexOf(year); if (i > 0) show(years[i - 1]); });
+  $('nextBtn').addEventListener('click', () => { const i = years.indexOf(year); if (i >= 0 && i < years.length - 1) show(years[i + 1]); });
+
   $('todayBtn').addEventListener('click', () => {
-    if (!data) return;
     const now = new Date();
     const sec = document.getElementById(`m-${now.getFullYear()}-${pad(now.getMonth() + 1)}`);
     if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
     else toast(t('outOfRange'));
   });
 
-  $('openBtn').addEventListener('click', () => $('fileIn').click());
+  // 他の端末で書き出したファイルを取り込む（その年度として保存）
   $('fileIn').addEventListener('change', async e => {
     const f = e.target.files[0];
     e.target.value = '';
     if (!f) return;
+    let d;
     try {
-      load(JSON.parse(await f.text()), f.name);
+      d = window.JC.normalize(JSON.parse(await f.text()));
     } catch (err) {
       alert(t('loadError'));
+      return;
     }
+    if (!window.JC.saveCalendar(d)) { alert(t('saveFailed')); return; }
+    reload();
+    show(d.startYear);
+    toast(t('loaded', d.startYear));
+  });
+
+  // 同じ端末の別タブで編集ページが保存したら表示を更新
+  window.addEventListener('storage', e => {
+    if (e.key !== window.JC.CAL_KEY) return;
+    reload();
+    if (year === null || !calendars[year]) year = defaultYear();
+    render();
   });
 
   let toastTimer;
@@ -360,21 +350,16 @@
   // ================= 起動 =================
   I.bindSelect($('langSel'));
   I.applyStatic();
-  I.onChange(() => { data ? render() : renderEmpty(); });
+  I.onChange(render);
 
   // オフライン対応（Webで公開している場合のみ有効）
   if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
     navigator.serviceWorker.register('sw.js').catch(() => {});
   }
 
-  // 前回読み込んだデータ → なければファイル選択
-  (async () => {
-    try {
-      const s = localStorage.getItem(STORE_KEY);
-      if (s) { load(JSON.parse(s)); return; }
-    } catch (e) { /* 無視 */ }
-    renderEmpty();
-  })();
+  reload();
+  year = defaultYear();
+  render();
 })();
 </script>
 </body>

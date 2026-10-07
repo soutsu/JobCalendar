@@ -70,6 +70,8 @@
   .status { width: 100%; font-size: 12px; color: #555; display: flex; flex-wrap: wrap; gap: 4px 18px; }
   .status b { color: #222; }
   .status .off { color: var(--off); }
+  .save-state { font-weight: 700; color: #2e7d32; }
+  .save-state.pending { color: #c0392b; }
 
   .stage { padding: 20px 16px 40px; display: flex; justify-content: center; }
 
@@ -207,14 +209,16 @@
     <input id="subIn" class="title-input" type="text" data-i18n-placeholder="subPlaceholder">
   </label>
   <div class="buttons">
-    <button id="saveBtn" class="primary" data-i18n="save" data-i18n-title="saveTip">名前をつけて保存</button>
-    <button id="openBtn" data-i18n="open" data-i18n-title="openTip">開く</button>
+    <button id="saveBtn" class="primary" data-i18n="save" data-i18n-title="saveTip">保存</button>
     <button id="printBtn" data-i18n="print" data-i18n-title="printTip">印刷・PDF</button>
+    <button id="exportBtn" data-i18n="exportFile" data-i18n-title="exportTip">ファイルに書き出し</button>
+    <button id="importBtn" data-i18n="importFile" data-i18n-title="importTip">ファイルから読み込み</button>
     <button id="resetBtn" data-i18n="reset" data-i18n-title="resetTip">初期状態に戻す</button>
   </div>
   <div class="status">
-    <span data-i18n-html="editorHelp"></span>
+    <span id="saveState" class="save-state"></span>
     <span id="counts"></span>
+    <span data-i18n-html="editorHelp"></span>
   </div>
   <input id="fileIn" type="file" accept=".json,application/json" hidden>
 </div>
@@ -231,75 +235,19 @@
 
 <div class="toast" id="toast"></div>
 
+<script src="common.js"></script>
 <script src="i18n.js"></script>
 <script>
 (() => {
   'use strict';
   const I = window.JC_I18N;
   const t = I.t;
-
-  // ================= 祝日計算（内閣府の現行ルール） =================
-  const pad = n => String(n).padStart(2, '0');
-  const keyOf = (y, m, d) => `${y}-${pad(m)}-${pad(d)}`;
-  const keyOfDate = dt => keyOf(dt.getFullYear(), dt.getMonth() + 1, dt.getDate());
-
-  // m月の第n月曜日の日付
-  function nthMonday(y, m, n) {
-    const dow1 = new Date(y, m - 1, 1).getDay();
-    return 1 + ((8 - dow1) % 7) + 7 * (n - 1);
-  }
-  const vernalEquinox = y => Math.floor(20.8431 + 0.242194 * (y - 1980) - Math.floor((y - 1980) / 4));
-  const autumnalEquinox = y => Math.floor(23.2488 + 0.242194 * (y - 1980) - Math.floor((y - 1980) / 4));
-
-  const holidayCache = {};
-  function holidaysOf(y) {
-    if (holidayCache[y]) return holidayCache[y];
-    const h = {};
-    const add = (m, d, name) => { h[keyOf(y, m, d)] = name; };
-
-    add(1, 1, '元日');
-    add(1, nthMonday(y, 1, 2), '成人の日');
-    add(2, 11, '建国記念の日');
-    add(2, 23, '天皇誕生日');
-    add(3, vernalEquinox(y), '春分の日');
-    add(4, 29, '昭和の日');
-    add(5, 3, '憲法記念日');
-    add(5, 4, 'みどりの日');
-    add(5, 5, 'こどもの日');
-    if (y === 2020) { add(7, 23, '海の日'); add(7, 24, 'スポーツの日'); add(8, 10, '山の日'); }
-    else if (y === 2021) { add(7, 22, '海の日'); add(7, 23, 'スポーツの日'); add(8, 8, '山の日'); }
-    else { add(7, nthMonday(y, 7, 3), '海の日'); add(8, 11, '山の日'); add(10, nthMonday(y, 10, 2), 'スポーツの日'); }
-    add(9, nthMonday(y, 9, 3), '敬老の日');
-    add(9, autumnalEquinox(y), '秋分の日');
-    add(11, 3, '文化の日');
-    add(11, 23, '勤労感謝の日');
-
-    // 国民の休日：祝日に挟まれた平日
-    const base = Object.keys(h);
-    for (const k of base) {
-      const d = new Date(k + 'T00:00:00');
-      const next = new Date(d); next.setDate(d.getDate() + 1);
-      const next2 = new Date(d); next2.setDate(d.getDate() + 2);
-      const k1 = keyOfDate(next), k2 = keyOfDate(next2);
-      if (!h[k1] && h[k2] && next.getDay() !== 0) h[k1] = '国民の休日';
-    }
-    // 振替休日：日曜の祝日の後の最初の平日
-    for (const k of Object.keys(h).sort()) {
-      const d = new Date(k + 'T00:00:00');
-      if (d.getDay() !== 0) continue;
-      const n = new Date(d);
-      do { n.setDate(n.getDate() + 1); } while (h[keyOfDate(n)]);
-      if (n.getFullYear() === y) h[keyOfDate(n)] = '振替休日';
-    }
-    return (holidayCache[y] = h);
-  }
-  const holidayName = (y, key) => holidaysOf(y)[key] || null;
+  const { keyOfDate, monthsOf, holidayName, isOff, fiscalYearOf } = window.JC;
 
   // ================= 状態 =================
-  const STORE_KEY = 'jobcalendar.current.v1';
-  const now = new Date();
+  const DRAFT_KEY = 'jobcalendar.current.v1';   // 保存前の編集内容（再読み込みしても消えないように）
   const state = {
-    startYear: now.getFullYear(),
+    startYear: fiscalYearOf(),
     title: '',
     titleAuto: true,
     subtitle: '',
@@ -308,24 +256,44 @@
 
   const autoTitle = y => t('autoTitle', y);
 
-  function isDefaultOff(dt) {
-    const dow = dt.getDay();
-    return dow === 0 || dow === 6 || !!holidayName(dt.getFullYear(), keyOfDate(dt));
+  // 状態 → 保存データ
+  function toData() {
+    return {
+      app: 'jobcalendar',
+      version: 1,
+      startYear: state.startYear,
+      title: state.title,
+      subtitle: state.subtitle,
+      overrides: [...state.overrides].sort(),
+    };
   }
-  const isOff = dt => isDefaultOff(dt) !== state.overrides.has(keyOfDate(dt));
 
-  // 対象区間の13か月
-  function monthsOf(y) {
-    const list = [];
-    for (let i = 0; i < 13; i++) {
-      const m = ((3 + i) % 12) + 1;
-      list.push({ y: y + (m < 4 || i === 12 ? 1 : 0), m });
-    }
-    return list;
+  // 保存データ → 状態
+  function setState(d) {
+    state.startYear = d.startYear;
+    state.title = d.title || autoTitle(d.startYear);
+    state.titleAuto = I.isAutoTitle(state.title, d.startYear);
+    if (state.titleAuto) state.title = autoTitle(d.startYear);   // 表示中の言語に合わせる
+    state.subtitle = d.subtitle || '';
+    state.overrides = new Set(d.overrides || []);
+    if (![...yearSel.options].some(o => +o.value === state.startYear)) addYearOption(state.startYear);
+    syncInputs();
+  }
+
+  // 比較用（自動タイトルは言語によらず同じものとみなす）
+  const fingerprint = d => JSON.stringify([
+    I.isAutoTitle(d.title, d.startYear) ? '' : d.title, d.subtitle || '', [...(d.overrides || [])].sort(),
+  ]);
+  const savedOf = y => window.JC.loadAll()[y] || null;
+  function saveStatus() {
+    const saved = savedOf(state.startYear);
+    if (!saved) return 'new';
+    return fingerprint(saved) === fingerprint(toData()) ? 'saved' : 'dirty';
   }
 
   // ================= 描画 =================
   const $ = id => document.getElementById(id);
+
   function render() {
     $('titleOut').textContent = state.title;
     $('subOut').textContent = state.subtitle;
@@ -365,7 +333,7 @@
         }
         const key = keyOfDate(dt);
         const inMonth = dt.getMonth() === m - 1;
-        const offDay = isOff(dt);
+        const offDay = isOff(dt, state.overrides);
         c.textContent = dt.getDate();
         if (offDay) c.classList.add('off');
         if (!inMonth) {
@@ -373,8 +341,7 @@
         } else {
           c.dataset.key = key;
           if (state.overrides.has(key)) { c.classList.add('changed'); changed++; }
-          const hn = I.holiday(holidayName(dt.getFullYear(), key));
-          c.title = t('dayInfo', m, dt.getDate(), DOW[dt.getDay()], hn, offDay);
+          c.title = t('dayInfo', m, dt.getDate(), DOW[dt.getDay()], I.holiday(holidayName(dt)), offDay);
           offDay ? (off++, mOff++) : (work++, mWork++);
         }
         cal.appendChild(c);
@@ -388,7 +355,12 @@
       wrap.appendChild(box);
     }
     $('counts').innerHTML = t('totals', work, off, changed);
-    persist();
+
+    const st = saveStatus();
+    const el = $('saveState');
+    el.textContent = t(st === 'saved' ? 'stateSaved' : st === 'dirty' ? 'stateDirty' : 'stateNew');
+    el.classList.toggle('pending', st !== 'saved');
+    persistDraft();
   }
 
   // ================= 操作 =================
@@ -404,21 +376,26 @@
   function addYearOption(y) {
     const o = document.createElement('option');
     o.value = y; o.textContent = t('yearOption', y);
-    yearSel.appendChild(o);
+    const after = [...yearSel.options].find(x => +x.value > y);
+    yearSel.insertBefore(o, after || null);
   }
   for (let y = 2024; y <= 2045; y++) addYearOption(y);
   const relabelYears = () => [...yearSel.options].forEach(o => { o.textContent = t('yearOption', +o.value); });
+
+  // 年度を切り替える：保存済みならそれを開き、なければ初期状態（サブタイトルは引き継ぐ）
+  function openYear(y) {
+    const saved = savedOf(y);
+    setState(saved || { startYear: y, title: '', subtitle: state.subtitle, overrides: [] });
+    render();
+  }
+
   yearSel.addEventListener('change', () => {
     const y = +yearSel.value;
-    if (state.overrides.size && !confirm(t('confirmYear'))) {
+    if (saveStatus() === 'dirty' && !confirm(t('confirmYear'))) {
       yearSel.value = state.startYear;
       return;
     }
-    state.startYear = y;
-    state.overrides.clear();
-    if (state.titleAuto) state.title = autoTitle(y);
-    syncInputs();
-    render();
+    openYear(y);
   });
 
   $('titleIn').addEventListener('input', e => {
@@ -438,87 +415,55 @@
 
   $('printBtn').addEventListener('click', () => window.print());
 
-  // ---- 保存・読込 ----
-  function toJSON() {
-    return JSON.stringify({
-      app: 'jobcalendar',
-      version: 1,
-      startYear: state.startYear,
-      title: state.title,
-      subtitle: state.subtitle,
-      overrides: [...state.overrides].sort(),
-    }, null, 2);
-  }
-
-  function applyData(d) {
-    if (!d || d.app !== 'jobcalendar' || typeof d.startYear !== 'number') throw new Error('invalid file');
-    state.startYear = d.startYear;
-    state.title = typeof d.title === 'string' ? d.title : autoTitle(d.startYear);
-    state.titleAuto = I.isAutoTitle(state.title, d.startYear);
-    if (state.titleAuto) state.title = autoTitle(d.startYear);   // 表示中の言語に合わせる
-    state.subtitle = typeof d.subtitle === 'string' ? d.subtitle : '';
-    state.overrides = new Set(Array.isArray(d.overrides) ? d.overrides.filter(s => /^\d{4}-\d{2}-\d{2}$/.test(s)) : []);
-    if (![...yearSel.options].some(o => +o.value === state.startYear)) addYearOption(state.startYear);
-    syncInputs();
-    render();
-  }
-
-  const safeName = s => s.replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, ' ').trim();
-
-  $('saveBtn').addEventListener('click', async () => {
-    const suggested = safeName(t('fileBase', state.startYear, state.subtitle)) || 'calendar';
-    const data = toJSON();
-    if (window.showSaveFilePicker) {
-      try {
-        const handle = await window.showSaveFilePicker({
-          suggestedName: suggested + '.json',
-          types: [{ description: t('fileTypeDesc'), accept: { 'application/json': ['.json'] } }],
-        });
-        const w = await handle.createWritable();
-        await w.write(data);
-        await w.close();
-        toast(t('savedTo', handle.name));
-        return;
-      } catch (e) {
-        if (e.name === 'AbortError') return;
-        // 使えない環境ではダウンロード方式にフォールバック
-      }
+  // ---- 保存（ブラウザ内。閲覧ページと共有） ----
+  $('saveBtn').addEventListener('click', () => {
+    if (window.JC.saveCalendar(toData())) {
+      toast(t('savedOk', state.startYear));
+    } else {
+      alert(t('saveFailed'));
     }
-    let name = prompt(t('promptName'), suggested);
-    if (name === null) return;
-    name = safeName(name) || suggested;
-    if (!/\.json$/i.test(name)) name += '.json';
+    render();
+  });
+
+  // ---- 他の端末へ移すためのファイル書き出し・読み込み ----
+  $('exportBtn').addEventListener('click', () => {
+    const name = t('exportName', state.startYear);
     const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([data], { type: 'application/json' }));
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(toData(), null, 2)], { type: 'application/json' }));
     a.download = name;
     document.body.appendChild(a);
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-    toast(t('downloaded', name));
+    toast(t('exported', name));
   });
 
-  $('openBtn').addEventListener('click', () => $('fileIn').click());
+  $('importBtn').addEventListener('click', () => $('fileIn').click());
   $('fileIn').addEventListener('change', async e => {
     const f = e.target.files[0];
     e.target.value = '';
     if (!f) return;
+    let d;
     try {
-      applyData(JSON.parse(await f.text()));
-      toast(t('opened', f.name));
+      d = window.JC.normalize(JSON.parse(await f.text()));
     } catch (err) {
       alert(t('loadError'));
+      return;
     }
+    if (saveStatus() === 'dirty' && d.startYear !== state.startYear && !confirm(t('confirmYear'))) return;
+    setState(d);
+    render();
+    toast(t('importedDraft', d.startYear));
   });
 
-  // ---- 作業中の内容をブラウザに自動保存（次回開いたときに復元） ----
-  function persist() {
-    try { localStorage.setItem(STORE_KEY, toJSON()); } catch (e) { /* 使えない環境では無視 */ }
+  // ---- 保存前の編集内容をブラウザに記憶（次回開いたときに続きから） ----
+  function persistDraft() {
+    try { localStorage.setItem(DRAFT_KEY, JSON.stringify(toData())); } catch (e) { /* 使えない環境では無視 */ }
   }
-  function restore() {
+  function restoreDraft() {
     try {
-      const s = localStorage.getItem(STORE_KEY);
-      if (s) { applyData(JSON.parse(s)); return true; }
+      const s = localStorage.getItem(DRAFT_KEY);
+      if (s) { setState(window.JC.normalize(JSON.parse(s))); return true; }
     } catch (e) { /* 無視 */ }
     return false;
   }
@@ -531,11 +476,11 @@
 
   let toastTimer;
   function toast(msg) {
-    const t = $('toast');
-    t.textContent = msg;
-    t.classList.add('show');
+    const el = $('toast');
+    el.textContent = msg;
+    el.classList.add('show');
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+    toastTimer = setTimeout(() => el.classList.remove('show'), 2200);
   }
 
   // 画面幅が狭いときは用紙を縮小表示
@@ -561,12 +506,9 @@
     render();
   });
 
-  // ---- 初期化 ----
-  if (!restore()) {
-    state.title = autoTitle(state.startYear);
-    syncInputs();
-    render();
-  }
+  // ---- 初期化：編集途中の内容 → 今年度の保存データ → 今年度の初期状態 ----
+  if (restoreDraft()) render();
+  else openYear(fiscalYearOf());
   fit();
 })();
 </script>
