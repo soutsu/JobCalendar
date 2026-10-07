@@ -270,7 +270,7 @@
   const { keyOfDate, monthsOf, holidayName, isOff, fiscalYearOf } = window.JC;
 
   // ================= 状態 =================
-  const DRAFT_KEY = 'jobcalendar.current.v1';   // 保存前の編集内容（再読み込みしても消えないように）
+  const OLD_DRAFT_KEY = 'jobcalendar.current.v1';   // 旧版で使っていた編集途中の記憶（今は使わない）
   const state = {
     startYear: fiscalYearOf(),
     title: '',
@@ -390,7 +390,8 @@
     const el = $('saveState');
     el.textContent = t(st === 'saved' ? 'stateSaved' : st === 'dirty' ? 'stateDirty' : 'stateNew');
     el.classList.toggle('pending', st !== 'saved');
-    persistDraft();
+    // 閲覧ページは編集中の年度で開く
+    $('toViewer').href = `viewer.html?year=${state.startYear}`;
   }
 
   // ================= 操作 =================
@@ -412,16 +413,19 @@
   for (let y = 2024; y <= 2045; y++) addYearOption(y);
   const relabelYears = () => [...yearSel.options].forEach(o => { o.textContent = t('yearOption', +o.value); });
 
-  // 年度を切り替える：保存済みならそれを開き、なければ初期状態（サブタイトルは引き継ぐ）
+  // 年度を開く：保存済みならそれ（閲覧ページと同じ内容）、なければ初期状態。
+  // 未保存の年度のサブタイトルは、入力中のもの → いちばん近い保存済み年度のものを引き継ぐ
   function openYear(y) {
-    const saved = savedOf(y);
-    setState(saved || { startYear: y, title: '', subtitle: state.subtitle, overrides: [] });
+    const all = window.JC.loadAll();
+    const nearest = Object.values(all).sort((a, b) => Math.abs(a.startYear - y) - Math.abs(b.startYear - y))[0];
+    const subtitle = state.subtitle || (nearest ? nearest.subtitle : '');
+    setState(all[y] || { startYear: y, title: '', subtitle, overrides: [] });
     render();
   }
 
   yearSel.addEventListener('change', () => {
     const y = +yearSel.value;
-    if (saveStatus() === 'dirty' && !confirm(t('confirmYear'))) {
+    if (hasUnsavedChanges() && !confirm(t('confirmYear'))) {
       yearSel.value = state.startYear;
       return;
     }
@@ -466,7 +470,7 @@
     leaveDlg.addEventListener('close', () => {
       const choice = leaveDlg.returnValue;
       if (choice === 'save' && !save()) return;
-      if (choice === 'save' || choice === 'discard') location.href = href;
+      if (choice === 'save' || choice === 'discard') { leaving = true; location.href = href; }
     }, { once: true });
     leaveDlg.showModal();
   });
@@ -496,23 +500,19 @@
       alert(t('loadError'));
       return;
     }
-    if (saveStatus() === 'dirty' && d.startYear !== state.startYear && !confirm(t('confirmYear'))) return;
+    if (hasUnsavedChanges() && d.startYear !== state.startYear && !confirm(t('confirmYear'))) return;
     setState(d);
     render();
     toast(t('importedDraft', d.startYear));
   });
 
-  // ---- 保存前の編集内容をブラウザに記憶（次回開いたときに続きから） ----
-  function persistDraft() {
-    try { localStorage.setItem(DRAFT_KEY, JSON.stringify(toData())); } catch (e) { /* 使えない環境では無視 */ }
-  }
-  function restoreDraft() {
-    try {
-      const s = localStorage.getItem(DRAFT_KEY);
-      if (s) { setState(window.JC.normalize(JSON.parse(s))); return true; }
-    } catch (e) { /* 無視 */ }
-    return false;
-  }
+  // ---- 保存せずにページを閉じる・再読み込みするときはブラウザの確認を出す ----
+  let leaving = false;   // 確認ダイアログで移動を選んだ後は出さない
+  window.addEventListener('beforeunload', e => {
+    if (leaving || !hasUnsavedChanges()) return;
+    e.preventDefault();
+    e.returnValue = '';
+  });
 
   function syncInputs() {
     yearSel.value = state.startYear;
@@ -552,9 +552,10 @@
     render();
   });
 
-  // ---- 初期化：編集途中の内容 → 今年度の保存データ → 今年度の初期状態 ----
-  if (restoreDraft()) render();
-  else openYear(fiscalYearOf());
+  // ---- 初期化：閲覧ページと同じ保存データを開く（?year= があればその年度、なければ今年度） ----
+  try { localStorage.removeItem(OLD_DRAFT_KEY); } catch (e) { /* 無視 */ }
+  const reqYear = Number(new URLSearchParams(location.search).get('year'));
+  openYear(Number.isInteger(reqYear) && reqYear >= 2000 && reqYear <= 2100 ? reqYear : fiscalYearOf());
   fit();
 })();
 </script>

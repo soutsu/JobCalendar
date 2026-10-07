@@ -150,7 +150,7 @@
 <nav class="pagenav">
   <span class="here" data-i18n="viewerHere">閲覧ページ</span>
   <select id="langSel" aria-label="Language"></select>
-  <a href="index.html" data-i18n="toEditor">編集ページへ</a>
+  <a href="index.html" id="toEditor" data-i18n="toEditor">編集ページへ</a>
 </nav>
 <header>
   <button id="prevBtn" class="arrow" disabled data-i18n-title="prevYear">‹</button>
@@ -195,6 +195,8 @@
 
   // ================= 描画 =================
   function updateNav() {
+    // 編集ページは表示中の年度で開く
+    $('toEditor').href = year === null ? 'index.html' : `index.html?year=${year}`;
     const idx = years.indexOf(year);
     $('prevBtn').disabled = idx <= 0;
     $('nextBtn').disabled = idx < 0 || idx >= years.length - 1;
@@ -358,7 +360,9 @@
   }
 
   reload();
-  year = defaultYear();
+  // ?year= で指定された年度（編集ページから来たとき）が保存済みならそれ、なければ今年度
+  const reqYear = Number(new URLSearchParams(location.search).get('year'));
+  year = calendars[reqYear] ? reqYear : defaultYear();
   render();
 })();
 </script>
