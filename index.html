@@ -145,6 +145,22 @@
   }
   .toast.show { opacity: .92; }
 
+  /* ---------- 未保存の確認ダイアログ ---------- */
+  dialog.confirm {
+    border: none; border-radius: 12px; padding: 20px 18px 16px;
+    width: min(360px, calc(100vw - 32px)); box-shadow: 0 8px 30px rgba(0,0,0,.25);
+    font: inherit; color: #222;
+  }
+  dialog.confirm::backdrop { background: rgba(0,0,0,.35); }
+  dialog.confirm p { margin: 0 0 16px; font-size: 15px; font-weight: 700; line-height: 1.5; }
+  dialog.confirm .actions { display: flex; flex-direction: column; gap: 8px; }
+  dialog.confirm button {
+    font: inherit; font-size: 15px; padding: 10px; border-radius: 8px; cursor: pointer;
+    border: 1px solid #bbb; background: #f7f7f9; color: #222;
+  }
+  dialog.confirm button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  dialog.confirm button.plain { border-color: transparent; background: none; color: #666; }
+
   /* ---------- スマホ表示（画面幅が狭いとき。印刷には影響しません） ---------- */
   @media screen and (max-width: 760px) {
     .toolbar { position: static; padding: 12px; gap: 10px; }
@@ -195,7 +211,7 @@
 <nav class="pagenav">
   <span class="here" data-i18n="editorHere">勤務カレンダー作成</span>
   <select id="langSel" aria-label="Language"></select>
-  <a href="viewer.html" data-i18n="toViewer">閲覧ページへ</a>
+  <a href="viewer.html" id="toViewer" data-i18n="toViewer">閲覧ページへ</a>
 </nav>
 
 <div class="toolbar">
@@ -234,6 +250,15 @@
 </div>
 
 <div class="toast" id="toast"></div>
+
+<dialog class="confirm" id="leaveDlg">
+  <p data-i18n="leaveTitle">変更があります。保存しますか？</p>
+  <div class="actions">
+    <button type="button" class="primary" value="save" data-i18n="leaveSave">保存して移動</button>
+    <button type="button" value="discard" data-i18n="leaveDiscard">保存せずに移動</button>
+    <button type="button" class="plain" value="cancel" data-i18n="cancel">キャンセル</button>
+  </div>
+</dialog>
 
 <script src="common.js"></script>
 <script src="i18n.js"></script>
@@ -289,6 +314,11 @@
     const saved = savedOf(state.startYear);
     if (!saved) return 'new';
     return fingerprint(saved) === fingerprint(toData()) ? 'saved' : 'dirty';
+  }
+  // 保存していない変更があるか（未保存の年度は、日付やタイトルを変えた場合のみ）
+  function hasUnsavedChanges() {
+    const st = saveStatus();
+    return st === 'dirty' || (st === 'new' && (state.overrides.size > 0 || !state.titleAuto));
   }
 
   // ================= 描画 =================
@@ -416,13 +446,29 @@
   $('printBtn').addEventListener('click', () => window.print());
 
   // ---- 保存（ブラウザ内。閲覧ページと共有） ----
-  $('saveBtn').addEventListener('click', () => {
-    if (window.JC.saveCalendar(toData())) {
-      toast(t('savedOk', state.startYear));
-    } else {
-      alert(t('saveFailed'));
-    }
+  function save() {
+    const ok = !!window.JC.saveCalendar(toData());
+    if (ok) toast(t('savedOk', state.startYear));
+    else alert(t('saveFailed'));
     render();
+    return ok;
+  }
+  $('saveBtn').addEventListener('click', save);
+
+  // ---- 閲覧ページへ移る前に、未保存の変更があれば確認 ----
+  const leaveDlg = $('leaveDlg');
+  leaveDlg.querySelectorAll('button').forEach(b => b.addEventListener('click', () => leaveDlg.close(b.value)));
+  $('toViewer').addEventListener('click', e => {
+    if (!hasUnsavedChanges() || typeof leaveDlg.showModal !== 'function') return;
+    e.preventDefault();
+    const href = e.currentTarget.href;
+    leaveDlg.returnValue = 'cancel';
+    leaveDlg.addEventListener('close', () => {
+      const choice = leaveDlg.returnValue;
+      if (choice === 'save' && !save()) return;
+      if (choice === 'save' || choice === 'discard') location.href = href;
+    }, { once: true });
+    leaveDlg.showModal();
   });
 
   // ---- 他の端末へ移すためのファイル書き出し・読み込み ----
