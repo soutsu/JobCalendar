@@ -1,8 +1,8 @@
 // 閲覧ページをオフラインでも開けるようにするための仕組み（Service Worker）。
 // ネットにつながっていれば常に最新版を取得し（更新がすぐ反映される）、
 // つながらないとき・応答が遅いときだけ保存済みの版を使う。
-const CACHE = 'jobcalendar-viewer-v4';
-const ASSETS = ['viewer.html', 'common.js', 'i18n.js', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png'];
+const CACHE = 'jobcalendar-viewer-v5';
+const ASSETS = ['viewer.html', 'common.js', 'i18n.js', 'share.js', 'vendor/qrcode.js', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png'];
 const TIMEOUT_MS = 3000;
 
 self.addEventListener('install', e => {

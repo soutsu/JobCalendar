@@ -134,9 +134,66 @@
 
   const savedYears = () => Object.keys(loadAll()).map(Number).sort((a, b) => a - b);
 
+  // ================= QRコード用の共有コード =================
+  // 形式: 1.<年度>.<反転した日のビット列>.<タイトル>.<サブタイトル>（各要素は base64url）
+  // 4月1日〜翌年4月30日の各日を1ビットで表すので、どの年度でも約70文字に収まる
+  const PAGES_URL = 'https://soutsu.github.io/JobCalendar/';
+
+  const b64url = bytes => btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const fromB64url = str => {
+    if (!/^[A-Za-z0-9_-]*$/.test(str)) throw new Error('invalid base64url');
+    const bin = atob(str.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((str.length + 3) % 4));
+    return Uint8Array.from(bin, c => c.charCodeAt(0));
+  };
+
+  // 区間の全日付（YYYY-MM-DD）
+  function rangeKeys(y) {
+    const keys = [];
+    for (const dt = new Date(y, 3, 1), end = new Date(y + 1, 3, 30); dt <= end; dt.setDate(dt.getDate() + 1)) {
+      keys.push(keyOfDate(dt));
+    }
+    return keys;
+  }
+
+  // titleIsAuto: タイトルが自動入力のままなら空にして送る（受け取り側の言語で表示される）
+  function toShareCode(d, titleIsAuto) {
+    const data = normalize(d);
+    const keys = rangeKeys(data.startYear);
+    const set = new Set(data.overrides);
+    const bits = new Uint8Array(Math.ceil(keys.length / 8));
+    keys.forEach((k, i) => { if (set.has(k)) bits[i >> 3] |= 1 << (i & 7); });
+    const enc = new TextEncoder();
+    return ['1', data.startYear, b64url(bits),
+      b64url(enc.encode(titleIsAuto ? '' : data.title)), b64url(enc.encode(data.subtitle))].join('.');
+  }
+
+  function fromShareCode(code) {
+    const parts = String(code).split('.');
+    if (parts.length !== 5 || parts[0] !== '1') throw new Error('unsupported share code');
+    const y = Number(parts[1]);
+    if (!Number.isInteger(y) || y < 2000 || y > 2100) throw new Error('invalid year');
+    const keys = rangeKeys(y);
+    const bits = fromB64url(parts[2]);
+    if (bits.length !== Math.ceil(keys.length / 8)) throw new Error('invalid day data');
+    const dec = new TextDecoder('utf-8', { fatal: true });
+    return normalize({
+      app: 'jobcalendar', startYear: y,
+      title: dec.decode(fromB64url(parts[3])),
+      subtitle: dec.decode(fromB64url(parts[4])),
+      overrides: keys.filter((k, i) => bits[i >> 3] & (1 << (i & 7))),
+    });
+  }
+
+  // QRコードに入れるURL（公開サイト上なら同じ場所、ローカルファイルなら公開サイト）
+  function shareUrl(d, titleIsAuto) {
+    const base = /^https?:$/.test(location.protocol) ? new URL('viewer.html', location.href).href : PAGES_URL + 'viewer.html';
+    return `${base}#cal=${toShareCode(d, titleIsAuto)}`;
+  }
+
   window.JC = {
     pad, keyOf, keyOfDate, fiscalYearOf, monthsOf,
     holidayName, isOff,
     CAL_KEY, normalize, loadAll, saveCalendar, savedYears,
+    toShareCode, fromShareCode, shareUrl,
   };
 })();

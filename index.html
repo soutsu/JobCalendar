@@ -227,6 +227,7 @@
   <div class="buttons">
     <button id="saveBtn" class="primary" data-i18n="save" data-i18n-title="saveTip">保存</button>
     <button id="printBtn" data-i18n="print" data-i18n-title="printTip">印刷・PDF</button>
+    <button id="shareBtn" data-i18n="shareQR" data-i18n-title="shareTip">QRコードで渡す</button>
     <button id="exportBtn" data-i18n="exportFile" data-i18n-title="exportTip">ファイルに書き出し</button>
     <button id="importBtn" data-i18n="importFile" data-i18n-title="importTip">ファイルから読み込み</button>
     <button id="resetBtn" data-i18n="reset" data-i18n-title="resetTip">初期状態に戻す</button>
@@ -260,8 +261,10 @@
   </div>
 </dialog>
 
+<script src="vendor/qrcode.js"></script>
 <script src="common.js"></script>
 <script src="i18n.js"></script>
+<script src="share.js"></script>
 <script>
 (() => {
   'use strict';
@@ -448,6 +451,9 @@
   });
 
   $('printBtn').addEventListener('click', () => window.print());
+
+  // ---- QRコードで他のスマホへ渡す（表示中の内容） ----
+  $('shareBtn').addEventListener('click', () => window.JC_SHARE.show(toData(), state.titleAuto));
 
   // ---- 保存（ブラウザ内。閲覧ページと共有） ----
   function save() {

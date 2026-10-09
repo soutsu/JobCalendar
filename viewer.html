@@ -135,6 +135,11 @@
   }
   .footer { text-align: center; padding: 8px 0 24px; font-size: 12px; color: var(--muted); }
   .footer p { margin: 0; }
+  .share-row { text-align: center; margin: -4px 0 12px; }
+  .share-row button {
+    font: inherit; font-size: 13px; font-weight: 600; padding: 6px 16px; border-radius: 999px; cursor: pointer;
+    border: 1px solid var(--accent); background: #fff; color: var(--accent);
+  }
 
   .toast {
     position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom)); transform: translateX(-50%);
@@ -166,8 +171,10 @@
 <input id="fileIn" type="file" accept=".json,application/json" hidden>
 <div class="toast" id="toast"></div>
 
+<script src="vendor/qrcode.js"></script>
 <script src="common.js"></script>
 <script src="i18n.js"></script>
+<script src="share.js"></script>
 <script>
 (() => {
   'use strict';
@@ -240,6 +247,13 @@
     legend.className = 'legend';
     legend.innerHTML = t('legend');
     main.appendChild(legend);
+
+    const shareRow = document.createElement('div');
+    shareRow.className = 'share-row';
+    shareRow.innerHTML = `<button type="button" id="shareBtn" title="${t('shareTip')}">${t('shareQR')}</button>`;
+    main.appendChild(shareRow);
+    $('shareBtn').addEventListener('click', () =>
+      window.JC_SHARE.show(data, !data.title || I.isAutoTitle(data.title, year)));
 
     for (const { y, m } of monthsOf(year)) {
       const sec = document.createElement('section');
@@ -332,6 +346,34 @@
     toast(t('loaded', d.startYear));
   });
 
+  // QRコードから開かれたとき（#cal=...）：受け取ったカレンダーを取り込む
+  function importFromHash() {
+    const m = location.hash.match(/^#cal=(.+)$/);
+    if (!m) return;
+    history.replaceState(null, '', location.pathname + location.search);   // 再読み込みで再度取り込まないように
+    let d;
+    try {
+      d = window.JC.fromShareCode(decodeURIComponent(m[1]));
+    } catch (err) {
+      alert(t('qrInvalid'));
+      return;
+    }
+    const y = d.startYear;
+    const existing = calendars[y];
+    const key = c => JSON.stringify([I.isAutoTitle(c.title, y) ? '' : c.title, c.subtitle, c.overrides]);
+    if (existing && key(existing) === key(d)) {
+      show(y);
+      toast(t('importSame', y));
+      return;
+    }
+    if (!confirm(t(existing ? 'importOverwrite' : 'importConfirm', y))) return;
+    if (!window.JC.saveCalendar(d)) { alert(t('saveFailed')); return; }
+    reload();
+    show(y);
+    toast(t('loaded', y));
+  }
+  window.addEventListener('hashchange', importFromHash);
+
   // 同じ端末の別タブで編集ページが保存したら表示を更新
   window.addEventListener('storage', e => {
     if (e.key !== window.JC.CAL_KEY) return;
@@ -364,6 +406,7 @@
   const reqYear = Number(new URLSearchParams(location.search).get('year'));
   year = calendars[reqYear] ? reqYear : defaultYear();
   render();
+  setTimeout(importFromHash, 50);   // 画面を表示してから取り込みの確認を出す
 })();
 </script>
 </body>
