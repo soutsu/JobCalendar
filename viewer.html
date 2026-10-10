@@ -329,11 +329,16 @@
   $('prevBtn').addEventListener('click', () => { const i = years.indexOf(year); if (i > 0) show(years[i - 1]); });
   $('nextBtn').addEventListener('click', () => { const i = years.indexOf(year); if (i >= 0 && i < years.length - 1) show(years[i + 1]); });
 
-  $('todayBtn').addEventListener('click', () => {
+  // 今月の位置へ移動（表示中の年度に今月が無ければ false）
+  function scrollToThisMonth(smooth) {
     const now = new Date();
     const sec = document.getElementById(`m-${now.getFullYear()}-${pad(now.getMonth() + 1)}`);
-    if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    else toast(t('outOfRange'));
+    if (sec) sec.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: 'start' });
+    return !!sec;
+  }
+
+  $('todayBtn').addEventListener('click', () => {
+    if (!scrollToThisMonth(true)) toast(t('outOfRange'));
   });
 
   // 他の端末で書き出したファイルを取り込む（その年度として保存）
@@ -414,7 +419,13 @@
   const reqYear = Number(new URLSearchParams(location.search).get('year'));
   year = calendars[reqYear] ? reqYear : defaultYear();
   render();
-  setTimeout(importFromHash, 50);   // 画面を表示してから取り込みの確認を出す
+  if (/^#cal=/.test(location.hash)) {
+    setTimeout(importFromHash, 50);   // 画面を表示してから取り込みの確認を出す
+  } else {
+    // 開いたとき・再読み込みしたときは今月の位置から表示する
+    if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+    scrollToThisMonth(false);
+  }
 })();
 </script>
 </body>
