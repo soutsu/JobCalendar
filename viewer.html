@@ -135,11 +135,13 @@
   }
   .footer { text-align: center; padding: 8px 0 24px; font-size: 12px; color: var(--muted); }
   .footer p { margin: 0; }
-  .share-row { text-align: center; margin: -4px 0 12px; }
-  .share-row button {
-    font: inherit; font-size: 13px; font-weight: 600; padding: 6px 16px; border-radius: 999px; cursor: pointer;
-    border: 1px solid var(--accent); background: #fff; color: var(--accent);
+  .pagenav .icon-btn {
+    width: 30px; height: 30px; padding: 0; flex: none; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    border: 1px solid #e8a7a2; border-radius: 50%; background: #fff; color: #c0392b;
   }
+  .pagenav .icon-btn svg { width: 17px; height: 17px; display: block; }
+  .pagenav .icon-btn[hidden] { display: none; }
 
   .toast {
     position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom)); transform: translateX(-50%);
@@ -154,6 +156,13 @@
 
 <nav class="pagenav">
   <span class="here" data-i18n="viewerHere">閲覧ページ</span>
+  <button type="button" id="shareBtn" class="icon-btn" hidden data-i18n-title="shareQR">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+      <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+      <rect x="3" y="14" width="7" height="7" rx="1"/>
+      <path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 20h4v-3" stroke-linecap="round"/>
+    </svg>
+  </button>
   <select id="langSel" aria-label="Language"></select>
   <a href="index.html" id="toEditor" data-i18n="toEditor">編集ページへ</a>
 </nav>
@@ -208,6 +217,7 @@
     $('prevBtn').disabled = idx <= 0;
     $('nextBtn').disabled = idx < 0 || idx >= years.length - 1;
     $('todayBtn').disabled = year === null;
+    $('shareBtn').hidden = year === null;   // カレンダーが無いときは出さない
   }
 
   function renderEmpty() {
@@ -247,13 +257,6 @@
     legend.className = 'legend';
     legend.innerHTML = t('legend');
     main.appendChild(legend);
-
-    const shareRow = document.createElement('div');
-    shareRow.className = 'share-row';
-    shareRow.innerHTML = `<button type="button" id="shareBtn" title="${t('shareTip')}">${t('shareQR')}</button>`;
-    main.appendChild(shareRow);
-    $('shareBtn').addEventListener('click', () =>
-      window.JC_SHARE.show(data, !data.title || I.isAutoTitle(data.title, year)));
 
     for (const { y, m } of monthsOf(year)) {
       const sec = document.createElement('section');
@@ -316,6 +319,11 @@
   $('main').addEventListener('click', e => {
     const c = e.target.closest('.day[data-info]');
     if (c) toast(c.dataset.info);
+  });
+
+  $('shareBtn').addEventListener('click', () => {
+    const data = calendars[year];
+    if (data) window.JC_SHARE.show(data, !data.title || I.isAutoTitle(data.title, year));
   });
 
   $('prevBtn').addEventListener('click', () => { const i = years.indexOf(year); if (i > 0) show(years[i - 1]); });
