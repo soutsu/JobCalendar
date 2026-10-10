@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- カレンダーの形のアイコン（白い枠に赤い休日のマス） -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <path
+        android:fillColor="#202020"
+        android:pathData="M24,0a24,24 0,1 1,0 48a24,24 0,1 1,0 -48z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M12,14h24v22h-24z M14,20v14h20v-14z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M16,23h4v4h-4z M22,23h4v4h-4z M22,29h4v4h-4z M16,29h4v4h-4z" />
+    <path
+        android:fillColor="#FF6B6B"
+        android:pathData="M28,23h4v4h-4z M28,29h4v4h-4z" />
+</vector>

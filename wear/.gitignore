@@ -11,3 +11,6 @@ local.properties
 captures/
 .cxx/
 .kotlin/
+
+# 作業用に wear/ 直下へ置いたカレンダーのデータも公開しない
+/calendar.json

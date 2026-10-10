@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- タイル一覧に出る見本（月のマス目のイメージ） -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="192dp"
+    android:height="192dp"
+    android:viewportWidth="192"
+    android:viewportHeight="192">
+    <path
+        android:fillColor="#000000"
+        android:pathData="M96,0a96,96 0,1 1,0 192a96,96 0,1 1,0 -192z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M70,30h52v8h-52z" />
+    <path
+        android:fillColor="#FF6B6B"
+        android:pathData="M33,52h10v6h-10z M141,52h10v6h-10z
+            M33,70h10v10h-10z M141,70h10v10h-10z
+            M33,88h10v10h-10z M141,88h10v10h-10z
+            M33,106h10v10h-10z M141,106h10v10h-10z
+            M33,124h10v10h-10z M141,124h10v10h-10z M105,106h10v10h-10z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M51,52h10v6h-10z M69,52h10v6h-10z M87,52h10v6h-10z M105,52h10v6h-10z M123,52h10v6h-10z
+            M51,70h10v10h-10z M69,70h10v10h-10z M87,70h10v10h-10z M105,70h10v10h-10z M123,70h10v10h-10z
+            M51,88h10v10h-10z M69,88h10v10h-10z M87,88h10v10h-10z M105,88h10v10h-10z M123,88h10v10h-10z
+            M51,106h10v10h-10z M69,106h10v10h-10z M87,106h10v10h-10z M123,106h10v10h-10z
+            M51,124h10v10h-10z M69,124h10v10h-10z M87,124h10v10h-10z M105,124h10v10h-10z M123,124h10v10h-10z" />
+</vector>
