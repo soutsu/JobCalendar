@@ -184,6 +184,21 @@
     });
   }
 
+  // ファイル書き出し用：区間（4/1〜翌4/30）の休日一覧と祝日名を展開したもの。
+  // ウォッチアプリなど、祝日計算を持たない側はこれをそのまま使える
+  function expandDays(d) {
+    const data = normalize(d);
+    const overrides = new Set(data.overrides);
+    const offDays = [], holidays = {};
+    for (const key of rangeKeys(data.startYear)) {
+      const dt = new Date(key + 'T00:00:00');
+      if (isOff(dt, overrides)) offDays.push(key);
+      const hn = holidayName(dt);
+      if (hn) holidays[key] = hn;
+    }
+    return { rangeStart: `${data.startYear}-04-01`, rangeEnd: `${data.startYear + 1}-04-30`, offDays, holidays };
+  }
+
   // QRコードに入れるURL（公開サイト上なら同じ場所、ローカルファイルなら公開サイト）
   function shareUrl(d, titleIsAuto) {
     const base = /^https?:$/.test(location.protocol) ? new URL('viewer.html', location.href).href : PAGES_URL + 'viewer.html';
@@ -194,6 +209,6 @@
     pad, keyOf, keyOfDate, fiscalYearOf, monthsOf,
     holidayName, isOff,
     CAL_KEY, normalize, loadAll, saveCalendar, savedYears,
-    toShareCode, fromShareCode, shareUrl,
+    toShareCode, fromShareCode, shareUrl, expandDays,
   };
 })();

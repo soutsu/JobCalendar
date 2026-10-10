@@ -1,0 +1,13 @@
+# カレンダーのデータは公開サイトに載せない（各自のPCでのみ配置）
+app/src/main/assets/calendar.json
+
+# ビルド成果物など
+.gradle/
+build/
+*/build/
+local.properties
+.idea/
+*.iml
+captures/
+.cxx/
+.kotlin/

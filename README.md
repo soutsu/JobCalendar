@@ -53,6 +53,11 @@
 - 翻訳は `i18n.js` にまとめてあります。訳の修正はこのファイルだけで済みます
 - ローカルでファイルを開いて使う場合は、`common.js`・`i18n.js`・`share.js`・`vendor/` も同じ場所に置いてください
 
+## スマートウォッチ（Pixel Watch 3 のタイル）
+
+`wear/SPEC.md` に仕様があります。PC の Claude Code で作成し、ワイヤレスデバッグでインストールします。
+「ファイルに書き出し」で作る json には、ウォッチ用に休日の一覧（`offDays`）と祝日名（`holidays`）も入っています。
+
 ## 補足
 
 - QRコードの作成には [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator)（MIT License, Copyright (c) 2009 Kazuhiko Arase）を `vendor/qrcode.js` として同梱しています

@@ -485,7 +485,9 @@
   $('exportBtn').addEventListener('click', () => {
     const name = t('exportName', state.startYear);
     const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([JSON.stringify(toData(), null, 2)], { type: 'application/json' }));
+    // 読み込みに使うのは toData() の部分。offDays などはウォッチアプリ等のための展開済みデータ
+    const out = { ...toData(), ...window.JC.expandDays(toData()) };
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' }));
     a.download = name;
     document.body.appendChild(a);
     a.click();
