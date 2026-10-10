@@ -9,7 +9,7 @@ PC の Claude Code でこのファイルを読んで、`wear/` フォルダに A
 
 ## データ
 
-- アプリに組み込む：`wear/app/src/main/assets/calendar.json`
+- アプリに組み込む：`wear/calendar.json`（ビルド時に自動で取り込まれる。`wear/app/src/main/assets/calendar.json` に置いてもよい）
 - 中身は作成ページ（https://soutsu.github.io/JobCalendar/ ）の「ファイルに書き出し」で作った `work-calendar-YYYY.json` をそのまま使う（ファイル名だけ `calendar.json` に変える）
 - ウォッチ側で祝日計算はしない。次のフィールドだけを使う：
 
@@ -48,9 +48,14 @@ PC の Claude Code でこのファイルを読んで、`wear/` フォルダに A
 - minSdk 30、targetSdk は Wear OS 5 に合わせる
 - ネットワーク・権限は不要
 
+## ビルド環境の注意
+
+- `wear/gradle.properties` に、Norton の HTTPS 検査がある Windows PC 用の設定（`systemProp.javax.net.ssl.trustStoreType=Windows-ROOT`）が入っている。
+  Mac / Linux / GitHub Actions など Windows 以外でビルドするときは、この行をコメントアウトする
+
 ## 年に1回の更新手順
 
 1. 作成ページで新年度のカレンダーを作って保存し、「ファイルに書き出し」
-2. できた `work-calendar-YYYY.json` を `wear/app/src/main/assets/calendar.json` に上書き
+2. できた `work-calendar-YYYY.json` を `wear/calendar.json` という名前で上書き
 3. Pixel Watch 3 のワイヤレスデバッグで接続し、`./gradlew installDebug`（または Android Studio から実行）
 4. タイルが更新されない場合は、タイルを一度外して追加し直す
